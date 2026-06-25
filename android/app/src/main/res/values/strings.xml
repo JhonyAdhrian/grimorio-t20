@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Grimorio do Mestre</string>
+    <string name="title_activity_main">Grimorio do Mestre</string>
+    <string name="package_name">com.grimorio.mestre</string>
+    <string name="custom_url_scheme">com.grimorio.mestre</string>
+</resources>

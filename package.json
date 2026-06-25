@@ -1,0 +1,23 @@
+{
+  "name": "grimorio-do-mestre",
+  "version": "1.0.0",
+  "description": "Aplicativo RPG de D&D 5e para o Mestre gerenciar personagens, fotos, vida, notas e rolar dados.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node server.js",
+    "server": "node server.js"
+  },
+  "devDependencies": {
+    "vite": "^5.2.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.2.1",
+    "@capacitor/cli": "^6.2.1",
+    "@capacitor/core": "^6.2.1",
+    "express": "^4.19.2",
+    "socket.io": "^4.7.5"
+  }
+}

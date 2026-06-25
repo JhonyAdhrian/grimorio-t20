@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Área de Tormenta - T20 Co-Op Manager</title>
+    <!-- Google Fonts: Cinzel (Títulos fantasia) e Inter (Dados e texto legível) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Scripts Locais para Uso Offline -->
+    <script src="lucide.min.js"></script>
+    <script src="socket.io.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+
+        <!-- TELA 1: SELEÇÃO DE PERFIL / BOAS-VINDAS -->
+        <section id="screen-role-selection" class="screen active">
+            <div class="welcome-box">
+                <div class="welcome-header">
+                    <i data-lucide="flame" class="fire-icon"></i>
+                    <h1>Grimório de Tormenta 20</h1>
+                    <p>Painel Cooperativo Mestre & Jogador em Tempo Real</p>
+                </div>
+                
+                <div class="role-cards-container">
+                    <!-- CARD MESTRE -->
+                    <div class="role-card master">
+                        <div class="role-icon">
+                            <i data-lucide="crown"></i>
+                        </div>
+                        <h2>Hospedar como Mestre</h2>
+                        <p>Crie uma sala de jogo e gerencie os personagens conectando-se localmente ou pela internet. Veja vida, mana e itens dos jogadores em tempo real.</p>
+                        <button id="btn-host-game" class="btn-primary">
+                            <i data-lucide="plus-circle"></i> Criar Sala de Jogo
+                        </button>
+                    </div>
+
+                    <!-- CARD JOGADOR -->
+                    <div class="role-card player">
+                        <div class="role-icon">
+                            <i data-lucide="swords"></i>
+                        </div>
+                        <h2>Entrar como Jogador</h2>
+                        <p>Conecte-se à mesa do seu Mestre. Gerencie sua ficha, use pontos de mana, role dados e edite seu inventário por espaços de Tormenta 20.</p>
+                        
+                        <div class="join-form">
+                            <div class="form-group">
+                                <label for="join-room-code">Código da Sala</label>
+                                <input type="text" id="join-room-code" placeholder="Ex: T20-XYZ" maxlength="5">
+                            </div>
+                            <div class="form-group">
+                                <label for="join-char-name">Nome do Personagem</label>
+                                <input type="text" id="join-char-name" placeholder="Ex: Sir Reginaldo">
+                            </div>
+                            <button id="btn-join-game" class="btn-secondary">
+                                <i data-lucide="log-in"></i> Conectar Personagem
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- TELA 2: DASHBOARD DO MESTRE (MASTER) -->
+        <section id="screen-master-dashboard" class="screen">
+            <div class="dashboard-layout">
+                
+                <!-- SIDEBAR DO MESTRE -->
+                <aside class="master-sidebar">
+                    <div class="sidebar-header">
+                        <div class="logo">
+                            <i data-lucide="shield" class="logo-icon"></i>
+                            <span>Painel do Mestre</span>
+                        </div>
+                        <div class="room-badge">
+                            Sala: <span id="master-room-code">-----</span>
+                        </div>
+                    </div>
+
+                    <div class="connection-info">
+                        <h4>Endereço da Mesa (Wi-Fi):</h4>
+                        <p id="master-connection-ip">http://localhost:3000</p>
+                        <small class="text-muted">Passe este link e o código da sala para seus jogadores na mesma rede.</small>
+                    </div>
+
+                    <div class="divider">Ações Rápidas</div>
+                    
+                    <!-- ROLADOR DE DADOS INTEGRADO -->
+                    <div class="dice-roller-panel">
+                        <h3><i data-lucide="dices"></i> Rolador do Mestre</h3>
+                        <div class="dice-grid">
+                            <button class="btn-dice" data-sides="4">d4</button>
+                            <button class="btn-dice" data-sides="6">d6</button>
+                            <button class="btn-dice" data-sides="8">d8</button>
+                            <button class="btn-dice" data-sides="10">d10</button>
+                            <button class="btn-dice" data-sides="12">d12</button>
+                            <button class="btn-dice" data-sides="20">d20</button>
+                            <button class="btn-dice" data-sides="100">d100</button>
+                        </div>
+                        <div class="dice-custom-roll">
+                            <input type="number" id="master-dice-modifier" value="0">
+                            <button id="btn-master-custom-roll" class="btn-secondary btn-sm">Rolar com Mod</button>
+                        </div>
+                    </div>
+
+                    <button id="btn-close-room" class="btn-danger btn-block">
+                        <i data-lucide="power"></i> Fechar Sala de Jogo
+                    </button>
+                </aside>
+
+                <!-- CONTEÚDO PRINCIPAL DO MESTRE -->
+                <main class="master-main">
+                    <!-- LOG GLOBAL DE ROLAGENS (HISTÓRICO DA MESA) -->
+                    <section class="master-header-row">
+                        <div class="table-log-panel">
+                            <h3><i data-lucide="activity"></i> Log da Mesa (Rolagens em Tempo Real)</h3>
+                            <div class="global-log" id="global-log">
+                                <div class="log-placeholder">Nenhuma ação realizada na mesa ainda.</div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- GRID DE MONITORAÇÃO DE JOGADORES -->
+                    <section class="players-monitor-section">
+                        <div class="section-title-bar">
+                            <h2>Jogadores Conectados</h2>
+                            <span id="connected-players-count" class="badge">0 Heróis</span>
+                        </div>
+
+                        <div class="players-monitor-grid" id="players-monitor-grid">
+                            <!-- Injetado dinamicamente: cards dos jogadores conectados -->
+                            <div class="no-players-connected" id="no-players-msg">
+                                <i data-lucide="hourglass" class="waiting-icon"></i>
+                                <h3>Aguardando Conexão de Jogadores...</h3>
+                                <p>Os jogadores devem usar o código de sala acima para se conectar.</p>
+                            </div>
+                        </div>
+                    </section>
+                </main>
+            </div>
+        </section>
+
+        <!-- TELA 3: FICHA DO JOGADOR (PLAYER SHEET) -->
+        <section id="screen-player-sheet" class="screen">
+            <div class="player-layout">
+                
+                <!-- TOP BAR DO JOGADOR -->
+                <header class="player-header">
+                    <div class="player-identity">
+                        <h1 id="player-char-title">Nome do Herói</h1>
+                        <div class="player-sub-meta">
+                            <span id="player-class-race-lvl">Guerreiro Lvl 1 - Humano</span>
+                            <span class="room-status-badge">
+                                <span class="status-dot"></span> Conectado: <strong id="player-room-display">T20-XYZ</strong>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="player-header-actions">
+                        <button id="btn-edit-details" class="btn-secondary btn-sm">
+                            <i data-lucide="settings"></i> Config. Ficha
+                        </button>
+                        <button id="btn-exit-room" class="btn-outline btn-sm">
+                            <i data-lucide="log-out"></i> Sair da Sala
+                        </button>
+                    </div>
+                </header>
+
+                <!-- CORPO DA FICHA DO JOGADOR -->
+                <div class="player-body">
+                    
+                    <!-- PAINEL DE COMBATE / VITAIS T20 -->
+                    <div class="player-vitals-row">
+                        <!-- Pontos de Vida (PV) -->
+                        <div class="vital-card pv">
+                            <div class="vital-header">
+                                <span><i data-lucide="heart" class="icon-pv"></i> Pontos de Vida</span>
+                                <span class="vital-ratio"><span id="p-current-pv">10</span> / <span id="p-max-pv">10</span></span>
+                            </div>
+                            <div class="vital-bar-wrapper">
+                                <div class="vital-bar-fill fill-pv" id="p-pv-bar" style="width: 100%;"></div>
+                            </div>
+                            <div class="vital-controls">
+                                <button class="btn-vital-adj minus" id="btn-p-pv-minus">-</button>
+                                <input type="number" id="p-pv-adj-val" value="1" min="1">
+                                <button class="btn-vital-adj plus" id="btn-p-pv-plus">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Pontos de Mana (PM) -->
+                        <div class="vital-card pm">
+                            <div class="vital-header">
+                                <span><i data-lucide="sparkles" class="icon-pm"></i> Pontos de Mana</span>
+                                <span class="vital-ratio"><span id="p-current-pm">5</span> / <span id="p-max-pm">5</span></span>
+                            </div>
+                            <div class="vital-bar-wrapper">
+                                <div class="vital-bar-fill fill-pm" id="p-pm-bar" style="width: 100%;"></div>
+                            </div>
+                            <div class="vital-controls">
+                                <button class="btn-vital-adj minus" id="btn-p-pm-minus">-</button>
+                                <input type="number" id="p-pm-adj-val" value="1" min="1">
+                                <button class="btn-vital-adj plus" id="btn-p-pm-plus">+</button>
+                            </div>
+                        </div>
+
+                        <!-- Defesa -->
+                        <div class="vital-card armor">
+                            <span class="vital-label">Defesa</span>
+                            <div class="vital-numeric-display">
+                                <input type="number" id="p-defense" value="10">
+                                <i data-lucide="shield" class="vital-bg-icon"></i>
+                            </div>
+                        </div>
+
+                        <!-- Iniciativa -->
+                        <div class="vital-card init">
+                            <span class="vital-label">Iniciativa</span>
+                            <div class="vital-numeric-display">
+                                <input type="number" id="p-initiative" value="0">
+                                <i data-lucide="zap" class="vital-bg-icon"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GRID DA FICHA (ATRIBUTOS + ABAS) -->
+                    <div class="player-grid">
+                        
+                        <!-- COLUNA ATRIBUTOS T20 -->
+                        <aside class="player-attributes-col">
+                            <h3>Atributos T20</h3>
+                            <p class="text-muted text-xs">Insira os modificadores diretamente em T20 (-2 a +10).</p>
+                            
+                            <div class="attributes-stack">
+                                <div class="attr-row forca">
+                                    <span class="attr-label">Força (FOR)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-str', -1)">-</button>
+                                        <input type="number" id="p-str" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-str', 1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="attr-row destreza">
+                                    <span class="attr-label">Destreza (DES)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-dex', -1)">-</button>
+                                        <input type="number" id="p-dex" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-dex', 1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="attr-row constituicao">
+                                    <span class="attr-label">Constituição (CON)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-con', -1)">-</button>
+                                        <input type="number" id="p-con" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-con', 1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="attr-row inteligencia">
+                                    <span class="attr-label">Inteligência (INT)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-int', -1)">-</button>
+                                        <input type="number" id="p-int" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-int', 1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="attr-row sabedoria">
+                                    <span class="attr-label">Sabedoria (SAB)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-wis', -1)">-</button>
+                                        <input type="number" id="p-wis" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-wis', 1)">+</button>
+                                    </div>
+                                </div>
+                                <div class="attr-row carisma">
+                                    <span class="attr-label">Carisma (CAR)</span>
+                                    <div class="attr-control">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-cha', -1)">-</button>
+                                        <input type="number" id="p-cha" value="0">
+                                        <button class="btn-attr-qty" onclick="adjustAttr('p-cha', 1)">+</button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- ROLADOR DE DADOS DO JOGADOR -->
+                            <div class="player-dice-roller">
+                                <h4><i data-lucide="dices"></i> Rolar Dados</h4>
+                                <div class="player-dice-grid">
+                                    <button class="btn-p-dice" data-sides="4">d4</button>
+                                    <button class="btn-p-dice" data-sides="6">d6</button>
+                                    <button class="btn-p-dice" data-sides="8">d8</button>
+                                    <button class="btn-p-dice" data-sides="10">d10</button>
+                                    <button class="btn-p-dice" data-sides="12">d12</button>
+                                    <button class="btn-p-dice" data-sides="20" class="highlight">d20</button>
+                                    <button class="btn-p-dice" data-sides="100">d100</button>
+                                </div>
+                            </div>
+                        </aside>
+
+                        <!-- ABAS DE NAVEGAÇÃO DO JOGADOR -->
+                        <main class="player-tabs-col">
+                            <div class="player-tab-nav">
+                                <button class="p-tab-btn active" data-target="p-tab-skills">Perícias</button>
+                                <button class="p-tab-btn" data-target="p-tab-inventory">Inventário & Carga</button>
+                                <button class="p-tab-btn" data-target="p-tab-story">História & Notas</button>
+                            </div>
+
+                            <div class="player-tab-body">
+                                
+                                <!-- ABA 1: PERÍCIAS -->
+                                <div class="p-tab-content active" id="p-tab-skills">
+                                    <div class="skills-grid">
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-atletismo">
+                                            <label for="skill-atletismo">Atletismo <small>(FOR)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-acrobacia">
+                                            <label for="skill-acrobacia">Acrobacia <small>(DES)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-furtividade">
+                                            <label for="skill-furtividade">Furtividade <small>(DES)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-fortitude">
+                                            <label for="skill-fortitude">Fortitude <small>(CON)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-misticismo">
+                                            <label for="skill-misticismo">Misticismo <small>(INT)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-percepcao">
+                                            <label for="skill-percepcao">Percepção <small>(SAB)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-vontade">
+                                            <label for="skill-vontade">Vontade <small>(SAB)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-luta">
+                                            <label for="skill-luta">Luta <small>(FOR)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-pontaria">
+                                            <label for="skill-pontaria">Pontaria <small>(DES)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-enganacao">
+                                            <label for="skill-enganacao">Enganação <small>(CAR)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-intimidacao">
+                                            <label for="skill-intimidacao">Intimidação <small>(CAR)</small></label>
+                                        </div>
+                                        <div class="skill-checkbox-item">
+                                            <input type="checkbox" id="skill-persuasao">
+                                            <label for="skill-persuasao">Persuasão <small>(CAR)</small></label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ABA 2: INVENTÁRIO & CARGA -->
+                                <div class="p-tab-content" id="p-tab-inventory">
+                                    <div class="inventory-status-bar">
+                                        <div class="carry-meta">
+                                            <span>Capacidade de Carga (T20 Espaços):</span>
+                                            <span class="carry-ratio"><span id="p-current-slots">0</span> / <span id="p-max-slots">10</span></span>
+                                        </div>
+                                        <div class="carry-bar-wrapper">
+                                            <div class="carry-bar-fill" id="p-carry-bar" style="width: 0%;"></div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Adicionar Item -->
+                                    <div class="add-item-row">
+                                        <input type="text" id="inv-item-name" placeholder="Nome do Item (ex: Espada)">
+                                        <input type="number" id="inv-item-slots" placeholder="Espaços (ex: 1)" min="0" step="0.5" value="1">
+                                        <input type="number" id="inv-item-qty" placeholder="Qtd" min="1" value="1">
+                                        <button id="btn-add-inv-item" class="btn-primary btn-sm"><i data-lucide="plus"></i> Add</button>
+                                    </div>
+
+                                    <table class="inventory-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Item</th>
+                                                <th>Espaços (Unit.)</th>
+                                                <th>Qtd</th>
+                                                <th>Total</th>
+                                                <th>Ação</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="inventory-list-body">
+                                            <!-- Injetado dinamicamente -->
+                                            <tr class="empty-inventory-row">
+                                                <td colspan="5" class="text-center text-muted">Mochila vazia. Adicione itens acima.</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- ABA 3: HISTÓRIA & NOTAS -->
+                                <div class="p-tab-content" id="p-tab-story">
+                                    <div class="rp-fields-grid">
+                                        <div class="form-group">
+                                            <label for="p-deity">Deus Devoto (Tormenta)</label>
+                                            <input type="text" id="p-deity" placeholder="Ex: Valkaria, Khalmyr, Nimb">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="p-origin">Origem</label>
+                                            <input type="text" id="p-origin" placeholder="Ex: Acólito, Guarda, Fazendeiro">
+                                        </div>
+                                        <div class="form-group col-span-2">
+                                            <label for="p-backstory">História do Personagem</label>
+                                            <textarea id="p-backstory" rows="6" placeholder="Origens, motivações, segredos do seu herói..."></textarea>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </main>
+                    </div>
+
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- MODAL: CONFIGURAÇÃO INICIAL E DETALHADA DA FICHA -->
+    <div id="details-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i data-lucide="user-cog"></i> Configurações do Personagem</h2>
+                <button class="btn-close-modal" id="btn-close-details"><i data-lucide="x"></i></button>
+            </div>
+            <div class="modal-body" style="padding: 24px;">
+                <div class="form-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;">
+                    <div class="form-group">
+                        <label for="conf-char-name">Nome do Personagem</label>
+                        <input type="text" id="conf-char-name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="conf-char-lvl">Nível (1 - 20)</label>
+                        <input type="number" id="conf-char-lvl" min="1" max="20" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="conf-char-race">Raça</label>
+                        <input type="text" id="conf-char-race" placeholder="Ex: Humano, Lefou, Dahllan">
+                    </div>
+                    <div class="form-group">
+                        <label for="conf-char-class">Classe</label>
+                        <input type="text" id="conf-char-class" placeholder="Ex: Guerreiro, Ladino, Nobre">
+                    </div>
+                    <div class="form-group">
+                        <label for="conf-char-max-pv">PV Máximo</label>
+                        <input type="number" id="conf-char-max-pv" min="1" value="10">
+                    </div>
+                    <div class="form-group">
+                        <label for="conf-char-max-pm">PM Máximo</label>
+                        <input type="number" id="conf-char-max-pm" min="0" value="5">
+                    </div>
+                    <div class="form-group col-span-2">
+                        <label for="conf-char-avatar">URL da Imagem / Foto</label>
+                        <input type="url" id="conf-char-avatar" placeholder="https://exemplo.com/imagem.png">
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions" style="padding: 16px 24px; display: flex; justify-content: flex-end; gap: 12px; background: rgba(0,0,0,0.1);">
+                <button type="button" class="btn-outline btn-sm" id="btn-cancel-details">Cancelar</button>
+                <button type="button" class="btn-primary btn-sm" id="btn-save-details">Salvar Configurações</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Script de ajuste rápido do Atributo -->
+    <script>
+        function adjustAttr(id, amount) {
+            const input = document.getElementById(id);
+            if (input) {
+                let current = parseInt(input.value, 10);
+                if (isNaN(current)) current = 0;
+                input.value = current + amount;
+                // Dispara evento de mudança para notificar o socket em tempo real
+                input.dispatchEvent(new Event('change'));
+            }
+        }
+    </script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
